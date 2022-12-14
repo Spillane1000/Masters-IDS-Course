@@ -1,42 +1,37 @@
 % Application of face recognition to demonstrate the effectiveness of GA in
 % feature selection
 % Course: Introduction to Data Science
-% Author: George Azzopardi - September 2018
+% Author: George Azzopardi - October 2019
 
-function myFeatureSelectionwithGA
+function [bestchromosome, acc1, acc2] = myFeatureSelectionwithGA
+    % Note the change in function signature to return acc1 and acc2. This
+    % is for the sake of plotting them against each other with
+    % featureSelectionPlots.
+    % load data
+    load wine.data;
+    labels = wine(:,1);
+    features = wine(:,2:end);
 
-% directory names of image data
-trainingFolder = 'data/training-set/';
-testingFolder = 'data/testing-set/';
+    % Split data into training (70%) and test (30%) sets
+    c = cvpartition(labels,'holdout', 0.3,'Stratify',true);
+    trainingData = features(c.training,:);
+    trainingLabel = labels(c.training);
+    testData = features(c.test,:);
+    testLabel = labels(c.test);
 
-% Convert training and test data into column vectors
-[trainingLabel, trainingData, trainingimgs] = getData(trainingFolder);
-[testLabel, testData, testingimgs] = getData(testingFolder);
+    % Retrieve the best feature set using GA on the training data
+    bestchromosome = myGeneticAlgorithm(trainingData,trainingLabel);
+    
+    % trainingData(:,bestchromosome) is the trainingData with the least
+    % important features removed.
+    knn = fitcknn(trainingData(:,bestchromosome),trainingLabel);
+    c1 = predict(knn,testData(:,bestchromosome));
+    acc1 = sum(c1 == testLabel)/numel(c1);
+    fprintf('Feature size: %d\n', sum(bestchromosome)); 
+    fprintf('accuracy: %2.6f\n',acc1); 
 
-meanTrainingFace = mean(trainingData,2);
-trainingData = trainingData - repmat(meanTrainingFace,1,size(trainingData,2));
-testData = testData - repmat(meanTrainingFace,1,size(testData,2));
-
-labelList = [trainingLabel,testLabel];
-labelId = grp2idx(labelList);
-
-trainingId = labelId(1:numel(trainingLabel));
-testId = labelId(numel(trainingLabel)+1:end);
-
-bestchromosome = myGeneticAlgorithm(trainingData',trainingId);
-
-knn = fitcknn(trainingData(bestchromosome,:)',trainingId);
-c1 = predict(knn,testData(bestchromosome,:)');
-acc1 = sum(c1 == testId)/numel(c1);    
-
-function [labelList, dataMatrix, im] = getData(inputFolder)
-d = dir([inputFolder,'*.jpg']);
-dataMatrix = [];
-filenameList = cell(0);
-for i = 1:numel(d)
-    filenameList{i} = [inputFolder,d(i).name];
-    im{i} = imread(filenameList{i});
-    dataMatrix(:,i) = im{i}(:);    
-    [~,filename,~] = fileparts(filenameList{i});    
-    labelList{i} = filename(1:4);
-end
+    knn = fitcknn(trainingData,trainingLabel);
+    c1 = predict(knn,testData);
+    acc2 = sum(c1 == testLabel)/numel(c1);
+    fprintf('All features\n'); 
+    fprintf('accuracy: %2.6f\n',acc2);
